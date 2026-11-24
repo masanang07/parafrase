@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deteksi & Parafrase AI — File, Kalimat & Paragraf</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Client-side file parsers: .docx (mammoth) & .pdf (pdf.js) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              200: '#c7d2fe',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              900: '#312e81',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body {
+      background-color: #f8fafc;
+      background-image:
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.06) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+      background-attachment: fixed;
+    }
+    .gauge-circle {
+      transition: stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.35s ease;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800 antialiased">
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full px-4 sm:px-0 pointer-events-none"></div>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20 shrink-0">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <path d="M9 15l2 2 4-4"/>
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="font-display font-bold text-lg sm:text-xl text-slate-900 tracking-tight">
+                Deteksi & Parafrase AI
+              </h1>
+              <span class="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Gratis • Upload File • GitHub Pages Ready
+              </span>
+            </div>
+            <p class="text-xs text-slate-500">Cek pola AI dari file/teks & parafrase per kalimat atau per paragraf</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onclick="toggleSettingsModal()"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors"
+          title="Seting API Opsional (BYOK)"
+        >
+          <span>⚙️</span>
+          <span class="hidden sm:inline">Seting BYOK</span>
+        </button>
+      </div>
+
+      <!-- Nav Tabs -->
+      <nav class="flex p-1 bg-slate-100 rounded-xl border border-slate-200/80">
+        <button
+          id="tab-btn-detector"
+          type="button"
+          onclick="switchTab('detector')"
+          class="flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-white text-brand-700 shadow-sm transition-all"
+        >
+          1. Deteksi File / Teks
+        </button>
+        <button
+          id="tab-btn-paraphraser"
+          type="button"
+          onclick="switchTab('paraphraser')"
+          class="flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition-all"
+        >
+          2. Parafrase Kalimat / Paragraf
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Optional BYOK Modal (100% optional; local engine works without any key) -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-display font-bold text-base text-slate-900">Seting Engine & API Opsional (BYOK)</h3>
+        <button type="button" onclick="toggleSettingsModal()" class="text-slate-400 hover:text-slate-700">✕</button>
+      </div>
+      <p class="text-xs text-slate-600 leading-relaxed">
+        Secara default, deteksi dan parafrase jalan <strong>100% gratis di browser</strong> tanpa API key. Kalau mau pakai LLM eksternal milikmu sendiri, isi di bawah (disimpan di <code>localStorage</code> browser).
+      </p>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Mode Engine</label>
+        <select id="cfg-engine" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm text-slate-800 bg-slate-50">
+          <option value="local">Lokal Gratis (Zero API / Offline-friendly)</option>
+          <option value="gemini">Gemini API Key (Opsional)</option>
+        </select>
+      </div>
+
+      <div id="cfg-gemini-box" class="hidden space-y-1.5">
+        <label class="block text-xs font-semibold text-slate-700">Gemini API Key</label>
+        <input id="cfg-gemini-key" type="password" placeholder="AIza..." class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm text-slate-800" />
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="clearBYOK()" class="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50">Reset</button>
+        <button type="button" onclick="saveBYOK()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white">Simpan Seting</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+
+    <!-- ===================================================================== -->
+    <!-- TAB 1: DETEKSI FILE / TEKS                                            -->
+    <!-- ===================================================================== -->
+    <section id="panel-detector" class="space-y-6">
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+        <div class="px-4 sm:px-6 py-3.5 bg-slate-50/80 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="font-display font-bold text-sm sm:text-base text-slate-800">
+            Upload File (.pdf, .docx, .txt, .md, .csv) atau Tempel Teks
+          </h2>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="loadSample('ai')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100">
+              Contoh Teks AI
+            </button>
+            <button type="button" onclick="loadSample('human')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">
+              Contoh Teks Manusia
+            </button>
+            <button type="button" onclick="clearDetector()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-200/60">
+              Bersihkan
+            </button>
+          </div>
+        </div>
+
+        <div class="p-4 sm:p-6 space-y-4">
+          <!-- File Dropzone -->
+          <div
+            id="dropzone"
+            ondragover="handleDragOver(event)"
+            ondragleave="handleDragLeave(event)"
+            ondrop="handleFileDrop(event)"
+            class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-4 sm:p-5 bg-slate-50/60 hover:bg-brand-50/30 transition-all flex flex-col sm:flex-row items-center justify-between gap-4"
+          >
+            <div class="flex items-center gap-3 text-center sm:text-left">
+              <div class="w-11 h-11 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-xs sm:text-sm font-semibold text-slate-800">
+                  Tarik & lepas file ke sini, atau pilih file dari perangkat
+                </p>
+                <p id="uploaded-file-info" class="text-xs text-slate-500 mt-0.5">
+                  Mendukung PDF, DOCX (Word), TXT, MD, CSV — diproses langsung di browser
+                </p>
+              </div>
+            </div>
+
+            <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 shadow-2xs shrink-0">
+              <span>Pilih File</span>
+              <input
+                id="file-input"
+                type="file"
+                accept=".pdf,.docx,.txt,.md,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv"
+                onchange="handleFileSelect(event)"
+                class="hidden"
+              />
+            </label>
+          </div>
+
+          <!-- Textarea -->
+          <textarea
+            id="detector-input"
+            rows="7"
+            oninput="updateDetectorCounts()"
+            placeholder="Isi teks dari file yang di-upload akan muncul di sini (bisa juga langsung paste/ketik teks)..."
+            class="w-full rounded-xl border border-slate-200 bg-slate-50/40 focus:bg-white p-4 text-sm sm:text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 leading-relaxed"
+          ></textarea>
+
+          <!-- Counts + Detect Button -->
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-slate-600">
+              <span class="px-3 py-1.5 rounded-lg bg-slate-100"><strong id="det-words" class="text-slate-900">0</strong> Kata</span>
+              <span class="px-3 py-1.5 rounded-lg bg-slate-100"><strong id="det-sentences" class="text-slate-900">0</strong> Kalimat</span>
+              <span class="px-3 py-1.5 rounded-lg bg-slate-100"><strong id="det-paragraphs" class="text-slate-900">0</strong> Paragraf</span>
+            </div>
+
+            <button
+              id="btn-detect"
+              type="button"
+              onclick="runDetection()"
+              class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-brand-600 to-violet-600 hover:from-brand-700 hover:to-violet-700 shadow-md shadow-brand-600/20 transition-all"
+            >
+              <span>Deteksi Skor AI</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detection Result -->
+      <div id="detector-results" class="hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- Score Gauge -->
+          <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-display font-bold text-base text-slate-900">Probabilitas AI</h3>
+                <span id="det-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">-</span>
+              </div>
+
+              <div class="flex flex-col items-center text-center my-2">
+                <div class="relative w-36 h-36 flex items-center justify-center">
+                  <svg class="w-full h-full" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="50" fill="none" stroke="#f1f5f9" stroke-width="11" />
+                    <circle
+                      id="gauge-ring"
+                      class="gauge-circle"
+                      cx="60" cy="60" r="50"
+                      fill="none" stroke="#4f46e5" stroke-width="11" stroke-linecap="round"
+                      stroke-dasharray="314.16" stroke-dashoffset="314.16"
+                    />
+                  </svg>
+                  <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <span id="det-score-num" class="font-display font-extrabold text-3xl text-slate-900">0%</span>
+                    <span class="text-[11px] font-medium text-slate-500 uppercase">Skor AI</span>
+                  </div>
+                </div>
+                <p id="det-verdict-title" class="font-display font-bold text-base text-slate-900 mt-3">-</p>
+                <p id="det-verdict-desc" class="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">-</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onclick="transferToParaphraser()"
+              class="mt-5 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 transition-colors"
+            >
+              <span>Kirim ke Parafrase (Per Kalimat / Paragraf) →</span>
+            </button>
+          </div>
+
+          <!-- Linguistic Breakdown -->
+          <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-4">
+            <h3 class="font-display font-bold text-base text-slate-900">Indikator Linguistik</h3>
+
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1.5">
+              <div class="flex justify-between text-xs font-semibold">
+                <span>Burstiness (Variasi Panjang Kalimat)</span>
+                <span id="stat-burstiness">0/100</span>
+              </div>
+              <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div id="bar-burstiness" class="h-full bg-indigo-500 rounded-full transition-all duration-500" style="width:0%"></div>
+              </div>
+              <p id="desc-burstiness" class="text-xs text-slate-500">-</p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1.5">
+              <div class="flex justify-between text-xs font-semibold">
+                <span>Keragaman Kosakata (Lexical Diversity)</span>
+                <span id="stat-ttr">0%</span>
+              </div>
+              <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div id="bar-ttr" class="h-full bg-violet-500 rounded-full transition-all duration-500" style="width:0%"></div>
+              </div>
+              <p id="desc-ttr" class="text-xs text-slate-500">-</p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/70 space-y-2">
+              <div class="flex justify-between text-xs font-semibold">
+                <span>Pola Frasa Klise AI</span>
+                <span id="stat-cliche-count">0 ditemukan</span>
+              </div>
+              <div id="cliche-list" class="flex flex-wrap gap-1.5">
+                <span class="text-xs text-slate-500">Tidak ada frasa klise terdeteksi.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 2: PARAFRASE PER KALIMAT & PER PARAGRAF                           -->
+    <!-- ===================================================================== -->
+    <section id="panel-paraphraser" class="hidden space-y-6">
+      <!-- Controls -->
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-6 space-y-4">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <!-- Granularity: Sentence vs Paragraph -->
+          <div>
+            <label class="block font-display font-bold text-xs sm:text-sm text-slate-800 mb-2">
+              1. Granularitas Parafrase
+            </label>
+            <div class="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+              <button
+                id="gran-sentence"
+                type="button"
+                onclick="setGranularity('sentence')"
+                class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-brand-700 shadow-sm transition-all"
+              >
+                Per Kalimat
+              </button>
+              <button
+                id="gran-paragraph"
+                type="button"
+                onclick="setGranularity('paragraph')"
+                class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all"
+              >
+                Per Paragraf
+              </button>
+            </div>
+          </div>
+
+          <!-- Style Mode -->
+          <div>
+            <label class="block font-display font-bold text-xs sm:text-sm text-slate-800 mb-2">
+              2. Gaya Bahasa
+            </label>
+            <select id="para-style" class="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-800">
+              <option value="humanize">Natural & Manusiawi (Humanize)</option>
+              <option value="academic">Akademik & Formal</option>
+              <option value="casual">Santai & Komunikatif</option>
+              <option value="concise">Ringkas & Padat</option>
+            </select>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex flex-wrap items-center gap-2 lg:self-end">
+            <button
+              type="button"
+              onclick="buildParaUnits()"
+              class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors"
+            >
+              Pecah Unit
+            </button>
+            <button
+              type="button"
+              onclick="paraphraseAllUnits()"
+              class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-violet-600 hover:from-brand-700 hover:to-violet-700 shadow-sm transition-all"
+            >
+              Parafrase Semua
+            </button>
+          </div>
+        </div>
+
+        <!-- Source / Upload Box inside Paraphraser too -->
+        <div class="pt-3 border-t border-slate-100 space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-xs font-semibold text-slate-700">Teks Sumber (bisa edit langsung atau upload file):</span>
+            <label class="cursor-pointer text-xs font-semibold text-brand-600 hover:text-brand-800">
+              + Upload File ke Parafrase
+              <input type="file" accept=".pdf,.docx,.txt,.md,.csv" onchange="handleFileSelect(event, true)" class="hidden" />
+            </label>
+          </div>
+          <textarea
+            id="para-source-text"
+            rows="4"
+            oninput="buildParaUnits()"
+            placeholder="Tempel teks atau klik 'Kirim ke Parafrase' dari tab Deteksi..."
+            class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white p-3 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          ></textarea>
+        </div>
+      </div>
+
+      <!-- Per-Sentence / Per-Paragraph Cards -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Units List (7 cols) -->
+        <div class="lg:col-span-7 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 id="units-heading" class="font-display font-bold text-sm sm:text-base text-slate-900">
+              Daftar Kalimat (0)
+            </h3>
+            <span class="text-xs text-slate-500">Klik "Parafrase" pada bagian tertentu saja</span>
+          </div>
+          <div id="units-container" class="space-y-3">
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 text-center text-xs sm:text-sm text-slate-500">
+              Belum ada teks. Masukkan teks atau upload file dulu ya.
+            </div>
+          </div>
+        </div>
+
+        <!-- Combined Output Preview (5 cols) -->
+        <div class="lg:col-span-5">
+          <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 sticky top-24 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="font-display font-bold text-sm sm:text-base text-slate-900">Gabungan Hasil Parafrase</h3>
+              <span id="para-combined-words" class="text-xs font-semibold text-slate-500">0 kata</span>
+            </div>
+
+            <textarea
+              id="para-combined-output"
+              rows="12"
+              placeholder="Hasil parafrase per kalimat/paragraf otomatis terkumpul di sini (bisa kamu edit lagi)..."
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/30 leading-relaxed"
+            ></textarea>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onclick="copyCombinedOutput()"
+                class="flex-1 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white transition-colors"
+              >
+                Salin Hasil
+              </button>
+              <button
+                type="button"
+                onclick="downloadCombinedTxt()"
+                class="flex-1 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors"
+              >
+                Download .TXT
+              </button>
+              <button
+                type="button"
+                onclick="checkCombinedInDetector()"
+                class="w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+              >
+                Cek Ulang Skor AI Hasilnya
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="mt-auto border-t border-slate-200/80 bg-white/80 py-4 text-center text-xs text-slate-500">
+    Estimasi probabilistik berbasis pola linguistik (bukan vonis mutlak 100%). File diproses lokal di browser.
+  </footer>
+
+  <script>
+    // Configure pdf.js worker
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+
+    const STORAGE_KEY = "deteksi_parafrase_byok_v1";
+
+    const state = {
+      granularity: "sentence", // "sentence" | "paragraph"
+      units: [], // { id, original, paraphrased, aiScore }
+      byok: { engine: "local", geminiKey: "" }
+    };
+
+    const SAMPLES = {
+      ai: `Dalam era digital yang terus berkembang pesat, kecerdasan buatan telah memainkan peran krusial dalam mentransformasi berbagai sektor industri secara menyeluruh. Penting untuk dicatat bahwa integrasi teknologi ini tidak hanya meningkatkan efisiensi operasional, tetapi juga membuka peluang inovasi yang belum pernah terjadi sebelumnya.\n\nDi sisi lain, penerapan sistem otomatis menuntut kesiapan sumber daya manusia yang adaptif terhadap lanskap teknologi yang dinamis. Oleh karena itu, kolaborasi antara institusi pendidikan dan pelaku industri menjadi langkah strategis untuk memastikan pemanfaatan teknologi yang berkelanjutan.`,
+      human: `Kemarin sore hujan turun deras banget pas saya baru mau keluar kantor, akhirnya terpaksa berteduh di warung kopi kecil dekat stasiun. Sambil nunggu reda, saya sempat ngobrol sama pemilik warungnya tentang harga biji kopi lokal yang belakangan naik turun nggak menentu.\n\nKatanya, cuaca yang susah ditebak bikin panen di kebun pamannya mundur hampir sebulan. Obrolan singkat itu bikin saya sadar kalau dampak perubahan iklim ternyata sedekat itu dengan cangkir kopi yang tiap pagi kita seruput.`
+    };
+
+    const CLICHES = [
+      "dalam era digital", "terus berkembang pesat", "memainkan peran krusial",
+      "peran yang sangat penting", "penting untuk dicatat", "tidak dapat dipungkiri",
+      "secara keseluruhan", "oleh karena itu", "di sisi lain", "lanskap teknologi",
+      "menyelami lebih dalam", "kesimpulannya", "sebagai kesimpulan",
+      "hal ini menunjukkan bahwa", "membuka peluang baru",
+      "in today's digital age", "ever-evolving landscape", "plays a crucial role",
+      "it is important to note", "delve into", "in conclusion", "moreover", "furthermore"
+    ];
+
+    // Lightweight synonym & transition swaps for free local paraphrasing
+    const PHRASE_SWAPS = {
+      humanize: [
+        [/\bdalam era digital\b/gi, "di masa serba digital sekarang"],
+        [/\bterus berkembang pesat\b/gi, "tumbuh ngebut"],
+        [/\bmemainkan peran krusial\b/gi, "punya pengaruh besar"],
+        [/\bpenting untuk dicatat\b/gi, "menariknya"],
+        [/\btidak dapat dipungkiri\b/gi, "memang nggak bisa dipungkiri"],
+        [/\bsecara keseluruhan\b/gi, "kalau ditarik garis besarnya"],
+        [/\boleh karena itu\b/gi, "makanya"],
+        [/\bdi sisi lain\b/gi, "cuma di sisi lain"],
+        [/\bmembuka peluang inovasi\b/gi, "bikin ruang inovasi baru terbuka"],
+        [/\bmeningkatkan efisiensi operasional\b/gi, "bikin kerjaan operasional lebih ngebut"]
+      ],
+      academic: [
+        [/\bdalam era digital\b/gi, "pada konteks perkembangan digital kontemporer"],
+        [/\bterus berkembang pesat\b/gi, "mengalami pertumbuhan signifikan"],
+        [/\bmemainkan peran krusial\b/gi, "memiliki kontribusi substansial"],
+        [/\bpenting untuk dicatat\b/gi, "perlu diperhatikan bahwa"],
+        [/\btidak dapat dipungkiri\b/gi, "secara empiris tampak bahwa"],
+        [/\bsecara keseluruhan\b/gi, "secara komprehensif"],
+        [/\boleh karena itu\b/gi, "dengan demikian"],
+        [/\bdi sisi lain\b/gi, "namun demikian"]
+      ],
+      casual: [
+        [/\bdalam era digital\b/gi, "di zaman serba online gini"],
+        [/\bterus berkembang pesat\b/gi, "makin melesat"],
+        [/\bmemainkan peran krusial\b/gi, "ngaruh banget"],
+        [/\bpenting untuk dicatat\b/gi, "catatan penting nih"],
+        [/\bsecara keseluruhan\b/gi, "intinya sih"],
+        [/\boleh karena itu\b/gi, "jadi ya"],
+        [/\bdi sisi lain\b/gi, "tapi di sisi lain"]
+      ],
+      concise: [
+        [/\byang terus berkembang pesat\b/gi, "yang cepat berubah"],
+        [/\bmemainkan peran krusial dalam\b/gi, "sangat menentukan"],
+        [/\bpenting untuk dicatat bahwa\b/gi, ""],
+        [/\btidak dapat dipungkiri bahwa\b/gi, ""],
+        [/\bsecara keseluruhan\b/gi, "ringkasnya"],
+        [/\boleh karena itu\b/gi, "maka"]
+      ]
+    };
+
+    const WORD_SYNONYMS = {
+      penting: ["krusial", "vital", "perlu", "utama"],
+      meningkatkan: ["mendorong", "menaikkan", "menggenjot", "memperkuat"],
+      membantu: ["memudahkan", "mendukung", "menopang"],
+      menggunakan: ["memakai", "memanfaatkan", "mengandalkan"],
+      menunjukkan: ["memperlihatkan", "menggambarkan", "menandakan"],
+      masalah: ["kendala", "persoalan", "tantangan"],
+      sangat: ["banget", "amat", "cukup"],
+      namun: ["tapi", "namun begitu", "sayangnya"],
+      juga: ["pun", "sekalian", "turut"]
+    };
+
+    function showToast(msg, type = "info") {
+      const box = document.getElementById("toast-container");
+      const el = document.createElement("div");
+      const colors = {
+        info: "bg-slate-900 text-white border-slate-700",
+        success: "bg-emerald-900 text-emerald-50 border-emerald-700",
+        warning: "bg-amber-900 text-amber-50 border-amber-700",
+        error: "bg-rose-900 text-rose-50 border-rose-700"
+      };
+      el.className = `pointer-events-auto px-4 py-3 rounded-xl border shadow-lg text-xs sm:text-sm font-medium ${colors[type] || colors.info}`;
+      el.textContent = msg;
+      box.appendChild(el);
+      setTimeout(() => el.remove(), 3400);
+    }
+
+    function switchTab(tab) {
+      const isDet = tab === "detector";
+      document.getElementById("panel-detector").classList.toggle("hidden", !isDet);
+      document.getElementById("panel-paraphraser").classList.toggle("hidden", isDet);
+
+      document.getElementById("tab-btn-detector").className = isDet
+        ? "flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-white text-brand-700 shadow-sm"
+        : "flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900";
+
+      document.getElementById("tab-btn-paraphraser").className = !isDet
+        ? "flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-white text-brand-700 shadow-sm"
+        : "flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900";
+
+      if (!isDet) {
+        const detText = document.getElementById("detector-input").value.trim();
+        const paraSrc = document.getElementById("para-source-text");
+        if (detText && !paraSrc.value.trim()) {
+          paraSrc.value = detText;
+        }
+        buildParaUnits();
+      }
+    }
+
+    // BYOK Modal handlers
+    function loadBYOK() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+        state.byok = {
+          engine: saved.engine === "gemini" ? "gemini" : "local",
+          geminiKey: saved.geminiKey || ""
+        };
+      } catch (_) {}
+      document.getElementById("cfg-engine").value = state.byok.engine;
+      document.getElementById("cfg-gemini-key").value = state.byok.geminiKey;
+      toggleGeminiKeyInput();
+    }
+
+    function toggleGeminiKeyInput() {
+      const eng = document.getElementById("cfg-engine").value;
+      document.getElementById("cfg-gemini-box").classList.toggle("hidden", eng !== "gemini");
+    }
+
+    function toggleSettingsModal() {
+      loadBYOK();
+      document.getElementById("settings-modal").classList.toggle("hidden");
+    }
+
+    function saveBYOK() {
+      state.byok.engine = document.getElementById("cfg-engine").value;
+      state.byok.geminiKey = document.getElementById("cfg-gemini-key").value.trim();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.byok));
+      document.getElementById("settings-modal").classList.add("hidden");
+      showToast(`Seting disimpan (Engine: ${state.byok.engine === "gemini" ? "Gemini BYOK" : "Lokal Gratis"}).`, "success");
+    }
+
+    function clearBYOK() {
+      localStorage.removeItem(STORAGE_KEY);
+      state.byok = { engine: "local", geminiKey: "" };
+      document.getElementById("cfg-engine").value = "local";
+      document.getElementById("cfg-gemini-key").value = "";
+      toggleGeminiKeyInput();
+      showToast("Seting BYOK direset ke Lokal Gratis.", "info");
+    }
+
+    // File Extraction (.txt, .md, .csv, .docx, .pdf)
+    async function extractTextFromFile(file) {
+      const name = (file.name || "").toLowerCase();
+
+      if (name.endsWith(".docx")) {
+        if (!window.mammoth) throw new Error("Parser DOCX belum siap.");
+        const buf = await file.arrayBuffer();
+        const res = await mammoth.extractRawText({ arrayBuffer: buf });
+        return (res.value || "").trim();
+      }
+
+      if (name.endsWith(".pdf")) {
+        if (!window.pdfjsLib) throw new Error("Parser PDF belum siap.");
+        const buf = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+        let pages = [];
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const content = await page.getTextContent();
+          const line = content.items.map(it => it.str).join(" ");
+          pages.push(line.replace(/\s+/g, " ").trim());
+        }
+        return pages.join("\n\n").trim();
+      }
+
+      // .txt, .md, .csv, or fallback text
+      return (await file.text()).trim();
+    }
+
+    async function handleFileSelect(event, targetParaphraser = false) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      await processUploadedFile(file, targetParaphraser);
+      event.target.value = "";
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      document.getElementById("dropzone").classList.add("border-brand-500", "bg-brand-50/50");
+    }
+
+    function handleDragLeave(e) {
+      e.preventDefault();
+      document.getElementById("dropzone").classList.remove("border-brand-500", "bg-brand-50/50");
+    }
+
+    async function handleFileDrop(e) {
+      e.preventDefault();
+      handleDragLeave(e);
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      await processUploadedFile(file, false);
+    }
+
+    async function processUploadedFile(file, targetParaphraser) {
+      try {
+        showToast(`Membaca file "${file.name}"...`, "info");
+        const extracted = await extractTextFromFile(file);
+        if (!extracted) {
+          showToast("File kosong atau teks tidak bisa dibaca.", "warning");
+          return;
+        }
+
+        document.getElementById("uploaded-file-info").textContent =
+          `File aktif: ${file.name} (${Math.max(1, Math.round(file.size / 1024))} KB)`;
+
+        if (targetParaphraser) {
+          document.getElementById("para-source-text").value = extracted;
+          buildParaUnits();
+          showToast(`File "${file.name}" dimuat ke Parafrase!`, "success");
+        } else {
+          document.getElementById("detector-input").value = extracted;
+          updateDetectorCounts();
+          showToast(`File "${file.name}" berhasil diekstrak!`, "success");
+        }
+      } catch (err) {
+        showToast(`Gagal baca file: ${err.message || "format tidak didukung"}`, "error");
+      }
+    }
+
+    // Text tokenizers
+    function splitSentences(text) {
+      const matches = text.replace(/\s+/g, " ").trim().match(/[^.!?]+[.!?]+|[^.!?]+$/g);
+      return matches ? matches.map(s => s.trim()).filter(Boolean) : [];
+    }
+
+    function splitParagraphs(text) {
+      return text
+        .split(/\n\s*\n+/)
+        .map(p => p.trim())
+        .filter(Boolean);
+    }
+
+    function tokenize(text) {
+      return text.toLowerCase().match(/[a-zA-ZÀ-ÿ0-9'-]+/g) || [];
+    }
+
+    function updateDetectorCounts() {
+      const text = document.getElementById("detector-input").value;
+      document.getElementById("det-words").textContent = tokenize(text).length;
+      document.getElementById("det-sentences").textContent = splitSentences(text).length;
+      document.getElementById("det-paragraphs").textContent = splitParagraphs(text).length;
+    }
+
+    function loadSample(type) {
+      document.getElementById("detector-input").value = SAMPLES[type] || "";
+      document.getElementById("uploaded-file-info").textContent =
+        "Mendukung PDF, DOCX (Word), TXT, MD, CSV — diproses langsung di browser";
+      updateDetectorCounts();
+    }
+
+    function clearDetector() {
+      document.getElementById("detector-input").value = "";
+      document.getElementById("detector-results").classList.add("hidden");
+      updateDetectorCounts();
+    }
+
+    function analyzeLinguistics(text) {
+      const sentences = splitSentences(text);
+      const words = tokenize(text);
+      const lens = sentences.map(s => tokenize(s).length).filter(n => n > 0);
+
+      let burstiness = 45;
+      let mean = 0;
+      let sd = 0;
+      if (lens.length > 1) {
+        mean = lens.reduce((a, b) => a + b, 0) / lens.length;
+        const variance = lens.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / lens.length;
+        sd = Math.sqrt(variance);
+        const cv = mean > 0 ? sd / mean : 0;
+        burstiness = Math.min(100, Math.max(8, Math.round((cv / 0.62) * 100)));
+      }
+
+      const unique = new Set(words);
+      const rawTtr = words.length > 0 ? unique.size / words.length : 0;
+      const ttr = words.length > 0 ? Math.min(100, Math.round(rawTtr * Math.pow(words.length, 0.12) * 88)) : 0;
+
+      const lower = text.toLowerCase();
+      const foundCliches = CLICHES.filter(c => lower.includes(c));
+
+      const score = Math.min(
+        97,
+        Math.max(6, Math.round((100 - burstiness) * 0.52 + (100 - ttr) * 0.22 + Math.min(42, foundCliches.length * 12)))
+      );
+
+      return {
+        score,
+        burstiness,
+        ttr,
+        mean: mean.toFixed(1),
+        sd: sd.toFixed(1),
+        uniqueCount: unique.size,
+        totalWords: words.length,
+        foundCliches
+      };
+    }
+
+    async function runDetection() {
+      const text = document.getElementById("detector-input").value.trim();
+      if (tokenize(text).length < 8) {
+        showToast("Masukkan atau upload teks minimal 8 kata dulu.", "warning");
+        return;
+      }
+
+      const stats = analyzeLinguistics(text);
+      let finalScore = stats.score;
+      let verdictDesc =
+        finalScore >= 70
+          ? "Ritme panjang kalimat cenderung seragam dan terdeteksi frasa transisi klise yang sering muncul pada teks AI."
+          : finalScore >= 38
+          ? "Ada campuran antara struktur kalimat yang rapi/terpola dan variasi gaya bahasa alami."
+          : "Variasi panjang kalimat dan pilihan diksi lebih dinamis, menyerupai pola tulisan manusia.";
+
+      if (state.byok.engine === "gemini" && state.byok.geminiKey) {
+        try {
+          const resp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(state.byok.geminiKey)}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [{
+                    text: `Nilai probabilitas teks ini ditulis AI (0-100) dan berikan alasan singkat 1-2 kalimat dalam Bahasa Indonesia. Balas JSON valid {"aiScore": number, "reason": string}.\n\nTeks:\n${text.slice(0, 6000)}`
+                  }]
+                }],
+                generationConfig: { responseMimeType: "application/json" }
+              })
+            }
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            const parsed = JSON.parse(raw);
+            if (typeof parsed.aiScore === "number") {
+              finalScore = Math.min(100, Math.max(0, Math.round(parsed.aiScore * 0.75 + stats.score * 0.25)));
+            }
+            if (parsed.reason) verdictDesc = parsed.reason;
+          }
+        } catch (_) {
+          showToast("Gemini BYOK gagal dihubungi, pakai analisis lokal gratis.", "info");
+        }
+      }
+
+      renderDetection(finalScore, verdictDesc, stats);
+    }
+
+    function renderDetection(score, desc, stats) {
+      document.getElementById("detector-results").classList.remove("hidden");
+      document.getElementById("det-score-num").textContent = `${score}%`;
+
+      const circ = 314.16;
+      const ring = document.getElementById("gauge-ring");
+      ring.style.strokeDashoffset = circ - (score / 100) * circ;
+
+      const badge = document.getElementById("det-badge");
+      const title = document.getElementById("det-verdict-title");
+      if (score >= 70) {
+        ring.style.stroke = "#f43f5e";
+        badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800";
+        badge.textContent = "Terindikasi AI";
+        title.textContent = "Probabilitas AI Tinggi";
+      } else if (score >= 38) {
+        ring.style.stroke = "#f59e0b";
+        badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800";
+        badge.textContent = "Campuran";
+        title.textContent = "Pola Campuran (AI + Manusia)";
+      } else {
+        ring.style.stroke = "#10b981";
+        badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800";
+        badge.textContent = "Cenderung Manusia";
+        title.textContent = "Pola Tulisan Manusia";
+      }
+
+      document.getElementById("det-verdict-desc").textContent = desc;
+
+      document.getElementById("stat-burstiness").textContent = `${stats.burstiness}/100`;
+      document.getElementById("bar-burstiness").style.width = `${stats.burstiness}%`;
+      document.getElementById("desc-burstiness").textContent =
+        `Rata-rata ${stats.mean} kata/kalimat (SD: ${stats.sd}). Skor makin tinggi = variasi ritme makin alami.`;
+
+      document.getElementById("stat-ttr").textContent = `${stats.ttr}%`;
+      document.getElementById("bar-ttr").style.width = `${stats.ttr}%`;
+      document.getElementById("desc-ttr").textContent =
+        `${stats.uniqueCount} kata unik dari ${stats.totalWords} kata.`;
+
+      document.getElementById("stat-cliche-count").textContent = `${stats.foundCliches.length} ditemukan`;
+      const clicheBox = document.getElementById("cliche-list");
+      clicheBox.innerHTML = stats.foundCliches.length
+        ? stats.foundCliches.map(c => `<span class="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-xs">"${c}"</span>`).join("")
+        : `<span class="text-xs text-slate-500">Tidak ada frasa klise terdeteksi.</span>`;
+    }
+
+    function transferToParaphraser() {
+      const text = document.getElementById("detector-input").value.trim();
+      if (!text) return;
+      document.getElementById("para-source-text").value = text;
+      switchTab("paraphraser");
+      buildParaUnits();
+    }
+
+    // Per-sentence / Per-paragraph paraphrasing
+    function setGranularity(mode) {
+      state.granularity = mode;
+      document.getElementById("gran-sentence").className = mode === "sentence"
+        ? "px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-brand-700 shadow-sm"
+        : "px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900";
+      document.getElementById("gran-paragraph").className = mode === "paragraph"
+        ? "px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-brand-700 shadow-sm"
+        : "px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900";
+      buildParaUnits();
+    }
+
+    function buildParaUnits() {
+      const raw = document.getElementById("para-source-text").value.trim();
+      const parts = state.granularity === "paragraph" ? splitParagraphs(raw) : splitSentences(raw);
+
+      state.units = parts.map((chunk, idx) => ({
+        id: idx,
+        original: chunk,
+        paraphrased: state.units[idx]?.original === chunk ? (state.units[idx]?.paraphrased || "") : "",
+        aiScore: analyzeLinguistics(chunk).score
+      }));
+
+      renderUnits();
+      syncCombinedOutput();
+    }
+
+    function localParaphraseChunk(text, style, seed = 0) {
+      let out = text;
+      const swaps = PHRASE_SWAPS[style] || PHRASE_SWAPS.humanize;
+      for (const [pattern, replacement] of swaps) {
+        out = out.replace(pattern, replacement);
+      }
+
+      // Light word variation when humanize or casual
+      if (style === "humanize" || style === "casual") {
+        out = out.replace(/\b([a-zA-ZÀ-ÿ]+)\b/g, (word, w, offset) => {
+          const k = w.toLowerCase();
+          const list = WORD_SYNONYMS[k];
+          if (!list) return word;
+          const pick = list[(seed + offset) % list.length];
+          return /^[A-Z]/.test(word) ? pick.charAt(0).toUpperCase() + pick.slice(1) : pick;
+        });
+      }
+
+      return out.replace(/\s{2,}/g, " ").trim();
+    }
+
+    async function paraphraseSingleUnit(idx) {
+      const unit = state.units[idx];
+      if (!unit) return;
+      const style = document.getElementById("para-style").value;
+
+      let resultText = localParaphraseChunk(unit.original, style, idx);
+
+      if (state.byok.engine === "gemini" && state.byok.geminiKey) {
+        try {
+          const resp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(state.byok.geminiKey)}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [{
+                    text: `Parafrasekan bagian teks berikut dengan gaya "${style}". Pertahankan makna dan bahasa aslinya. Balas HANYA teks hasil parafrase:\n\n${unit.original}`
+                  }]
+                }]
+              })
+            }
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (txt) resultText = txt;
+          }
+        } catch (_) {}
+      }
+
+      unit.paraphrased = resultText;
+      renderUnits();
+      syncCombinedOutput();
+    }
+
+    async function paraphraseAllUnits() {
+      if (!state.units.length) {
+        showToast("Belum ada kalimat/paragraf untuk diparafrase.", "warning");
+        return;
+      }
+      for (let i = 0; i < state.units.length; i++) {
+        await paraphraseSingleUnit(i);
+      }
+      showToast(`Selesai memparafrase ${state.units.length} bagian!`, "success");
+    }
+
+    function updateUnitParaphraseManual(idx, val) {
+      if (!state.units[idx]) return;
+      state.units[idx].paraphrased = val;
+      syncCombinedOutput();
+    }
+
+    function syncCombinedOutput() {
+      const sep = state.granularity === "paragraph" ? "\n\n" : " ";
+      const combined = state.units
+        .map(u => (u.paraphrased && u.paraphrased.trim()) ? u.paraphrased.trim() : u.original)
+        .join(sep)
+        .trim();
+
+      const outBox = document.getElementById("para-combined-output");
+      if (state.units.some(u => u.paraphrased && u.paraphrased.trim())) {
+        outBox.value = combined;
+      } else {
+        outBox.value = "";
+      }
+      document.getElementById("para-combined-words").textContent = `${tokenize(outBox.value).length} kata`;
+    }
+
+    function renderUnits() {
+      const label = state.granularity === "paragraph" ? "Paragraf" : "Kalimat";
+      document.getElementById("units-heading").textContent = `Daftar ${label} (${state.units.length})`;
+      const container = document.getElementById("units-container");
+
+      if (!state.units.length) {
+        container.innerHTML = `<div class="bg-white rounded-2xl border border-slate-200 p-6 text-center text-xs sm:text-sm text-slate-500">Belum ada teks untuk dipecah.</div>`;
+        return;
+      }
+
+      container.innerHTML = state.units.map((u, i) => {
+        const pillColor = u.aiScore >= 70
+          ? "bg-rose-100 text-rose-700"
+          : u.aiScore >= 38
+          ? "bg-amber-100 text-amber-800"
+          : "bg-emerald-100 text-emerald-700";
+
+        return `
+          <div class="bg-white rounded-2xl border border-slate-200/90 p-4 space-y-2.5 shadow-2xs">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-700">${label} #${i + 1}</span>
+                <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold ${pillColor}">Skor AI ~${u.aiScore}%</span>
+              </div>
+              <button
+                type="button"
+                onclick="paraphraseSingleUnit(${i})"
+                class="px-3 py-1 rounded-lg text-xs font-semibold bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 transition-colors"
+              >
+                Parafrase ${label} Ini
+              </button>
+            </div>
+            <p class="text-xs sm:text-sm text-slate-600 bg-slate-50 rounded-xl p-3 border border-slate-200/60">${escapeHtml(u.original)}</p>
+            <textarea
+              rows="2"
+              oninput="updateUnitParaphraseManual(${i}, this.value)"
+              placeholder="Hasil parafrase ${label.toLowerCase()} #${i + 1} (bisa juga diketik manual)..."
+              class="w-full rounded-xl border border-slate-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 p-2.5 text-xs sm:text-sm text-slate-800"
+            >${escapeHtml(u.paraphrased)}</textarea>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function escapeHtml(str) {
+      return (str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function copyCombinedOutput() {
+      const txt = document.getElementById("para-combined-output").value.trim();
+      if (!txt) {
+        showToast("Belum ada hasil parafrase untuk disalin.", "warning");
+        return;
+      }
+      navigator.clipboard?.writeText(txt).catch(() => {});
+      showToast("Hasil parafrase disalin!", "success");
+    }
+
+    function downloadCombinedTxt() {
+      const txt = document.getElementById("para-combined-output").value.trim();
+      if (!txt) {
+        showToast("Belum ada hasil parafrase untuk di-download.", "warning");
+        return;
+      }
+      const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `hasil-parafrase-${state.granularity}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("File .TXT berhasil diunduh!", "success");
+    }
+
+    function checkCombinedInDetector() {
+      const txt = document.getElementById("para-combined-output").value.trim();
+      if (!txt) {
+        showToast("Parafrase dulu teksnya sebelum dicek ulang.", "warning");
+        return;
+      }
+      document.getElementById("detector-input").value = txt;
+      updateDetectorCounts();
+      switchTab("detector");
+      runDetection();
+    }
+
+    document.getElementById("cfg-engine").addEventListener("change", toggleGeminiKeyInput);
+    window.addEventListener("DOMContentLoaded", () => {
+      loadBYOK();
+      updateDetectorCounts();
+    });
+  </script>
+</body>
+</html>
